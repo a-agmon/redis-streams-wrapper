@@ -23,7 +23,7 @@ func TestMain(m *testing.M) {
 	}
 	log.Printf("Miniredis server created on %v", s.Addr())
 	client = NewRedisClient(RedisClientConfig{
-		Addr:     "localhost:6379", //s.Addr(),
+		Addr:     "localhost:6379",
 		DB:       0,
 		Password: "",
 		Username: "",
@@ -168,4 +168,43 @@ func TestCreatingGroup(t *testing.T) {
 	if err == nil {
 		t.Fail()
 	}
+}
+
+func TestBlockedRead(t *testing.T) {
+	produceMessages(5, t, client)
+	// we poll for 10 messages but only 5 are there
+	messages, err := client.FetchNewMessages(context.Background(), testStreamName, testConsumerGroup, 10, 3)
+	if err != nil {
+		t.Fatalf("Error polling for new messages: %v", err)
+	}
+	assert.EqualValues(t, len(messages), 5)
+}
+
+func TestConsumerGroupExists(t *testing.T) {
+	knownGroup := util.GenerateRandomConsumerName("NEWGROUP1")
+	unknownGroup := util.GenerateRandomConsumerName("NEWGROUP2")
+
+	// create a stream
+	groupTestStreamName := util.GenerateRandomConsumerName("GROUPTESTSTREAM")
+	err := client.ProduceMessage(context.Background(), groupTestStreamName, map[string]interface{}{"test": "test"})
+	if err != nil {
+		t.Fatalf("Error creating consumer group: %v", err)
+	}
+	//create a consumer group
+	err = client.CreateConsumerGroupIfNotExists(context.Background(), groupTestStreamName, knownGroup)
+	if err != nil {
+		t.Fatalf("Error creating consumer group: %v", err)
+	}
+	//check if it exists
+	exists, err := client.ConsumerGroupExists(context.Background(), groupTestStreamName, knownGroup)
+	if err != nil {
+		t.Fatalf("Error checking consumer group: %v", err)
+	}
+	assert.True(t, exists)
+	//check if the new one exists
+	exists, err = client.ConsumerGroupExists(context.Background(), groupTestStreamName, unknownGroup)
+	if err != nil {
+		t.Fatalf("Error checking consumer group: %v", err)
+	}
+	assert.False(t, exists)
 }
