@@ -1,0 +1,16 @@
+# add entry to mystream - field name is metric_a, value is 1
+XADD mystream * metric_a 1
+
+# create a group called mygroup that start processing mystream from the beginning (to process from the end, use $)
+XGROUP CREATE mystream mygroup 0
+
+# read using this group and consumer named consumder 1 only one message that was no read before (thats the meaning of >)
+XREADGROUP GROUP mygroup consumer1 COUNT 1 STREAMS mystream >
+
+// read one message from pending list - that were read but not acked
+XREADGROUP GROUP mygroup consumer1 COUNT 1 STREAMS mystream 0
+
+# ack a message
+XACK mystream mygroup 1682668974176-0
+
+XR
