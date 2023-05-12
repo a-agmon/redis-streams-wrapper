@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/a-agmon/redis-streams-wrapper/util"
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/go-redis/v9"
 	"log"
 	"time"
 )
@@ -190,6 +190,20 @@ func (r *RedisStreamsClient) ClaimMessagesNotAcked(ctx context.Context, streamKe
 		claimedMessages = append(claimedMessages, r.transformXMessageToRedisStreamsMessage(&xclaimedMsg))
 	}
 	return claimedMessages, nil
+}
+
+func (r *RedisStreamsClient) ConsumerGroupExists(ctx context.Context, streamKey string, consumerGroup string) (bool, error) {
+	groupsInfo, err := r.client.XInfoGroups(ctx, streamKey).Result()
+	if err != nil {
+		return false, err
+	}
+	for _, groupInfo := range groupsInfo {
+		if groupInfo.Name == consumerGroup {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 // TransformXMessageToRedisStreamsMessage Transform redis.XMessage to RedisStreamsMessage
