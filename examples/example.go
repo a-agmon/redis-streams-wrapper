@@ -2,34 +2,43 @@ package main
 
 import (
 	"context"
-	"github.com/a-agmon/redis-streams-wrapper/lib"
+	"github.com/a-agmon/redis-streams-wrapper/v1"
 	"log"
 )
 
 func main() {
 
+	exampleStreamName := "books-order-stream"
+	exampleGroupName := "books-order-group"
 	// create a new client wrapper
-	client := lib.NewRedisClient(lib.RedisClientConfig{
+	client := rediswrapper.NewRedisClientWrapper(rediswrapper.RedisClientConfig{
 		Addr: "localhost:6379",
-	}, ",my test consumer")
+	}, "")
+	log.Printf("Client created with consumer name %s", client.ConsumerName)
 
 	// produce a message
 	ctx := context.Background()
-	err := client.ProduceMessage(ctx, "books-order-stream", map[string]interface{}{
+	err := client.ProduceMessage(ctx, exampleStreamName, map[string]interface{}{
 		"book":   "The Sun Also Rises",
 		"author": "Earnest Hemingway",
 	})
 	if err != nil {
 		panic(err)
 	}
-
+	// create a consumer group if it does not exist
+	err = client.CreateConsumerGroupIfNotExists(context.Background(), exampleStreamName, exampleGroupName)
+	if err != nil {
+		panic(err)
+	}
 	// wait 5 seconds for 3 messages to arrive
+	log.Printf("Waiting 5 seconds for 3 messages to arrive")
 	messages, err := client.FetchNewMessages(
 		ctx,
-		"books-order-stream",
-		"books-order-group",
-		1,
+		exampleStreamName,
+		exampleGroupName,
+		3,
 		5)
+	log.Printf("Messages arrived!")
 	if err != nil {
 		panic(err)
 	}
@@ -39,7 +48,7 @@ func main() {
 			client.ConsumerName,
 			message.ID,
 			message.Properties)
-		err := client.AckMessage(ctx, "books-order-stream", "books-order-group", message.ID)
+		err := client.AckMessage(ctx, exampleStreamName, exampleGroupName, message.ID)
 		if err != nil {
 			panic(err)
 		}

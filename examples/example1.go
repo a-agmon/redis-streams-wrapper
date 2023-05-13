@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/a-agmon/redis-streams-wrapper/lib"
+	"github.com/a-agmon/redis-streams-wrapper/v1"
 	"log"
 	"os"
 	"os/signal"
@@ -35,8 +35,8 @@ func main() {
 
 }
 
-func initRedisClient(redisURL string, consumerName string) *lib.RedisStreamsClient {
-	redisClient := lib.NewRedisClient(lib.RedisClientConfig{
+func initRedisClient(redisURL string, consumerName string) *rediswrapper.RedisStreamsClient {
+	redisClient := rediswrapper.NewRedisClientWrapper(rediswrapper.RedisClientConfig{
 		Addr:     redisURL,
 		Username: "",
 		Password: "",

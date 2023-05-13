@@ -1,8 +1,8 @@
-package lib
+package rediswrapper
 
 import (
 	"context"
-	"github.com/a-agmon/redis-streams-wrapper/util"
+	"github.com/a-agmon/redis-streams-wrapper/generate"
 	"github.com/alicebob/miniredis/v2"
 	"github.com/stretchr/testify/assert"
 	"log"
@@ -10,9 +10,9 @@ import (
 	"time"
 )
 
-var testConsumerName = util.GenerateRandomConsumerName("CONSUMER")
-var testStreamName = util.GenerateRandomConsumerName("STREAM")
-var testConsumerGroup = util.GenerateRandomConsumerName("GROUP")
+var testConsumerName = generate.RandomStringWithPrefix("CONSUMER")
+var testStreamName = generate.RandomStringWithPrefix("STREAM")
+var testConsumerGroup = generate.RandomStringWithPrefix("GROUP")
 var client *RedisStreamsClient
 
 func TestMain(m *testing.M) {
@@ -22,12 +22,13 @@ func TestMain(m *testing.M) {
 		log.Fatalf("Error creating miniredis server: %v", err)
 	}
 	log.Printf("Miniredis server created on %v", s.Addr())
-	client = NewRedisClient(RedisClientConfig{
-		Addr:     "localhost:6379",
+	client = NewRedisClientWrapper(RedisClientConfig{
+		Addr:     s.Addr(),
 		DB:       0,
 		Password: "",
 		Username: "",
 	}, testConsumerName)
+
 	m.Run()
 	s.Close()
 }
@@ -181,11 +182,11 @@ func TestBlockedRead(t *testing.T) {
 }
 
 func TestConsumerGroupExists(t *testing.T) {
-	knownGroup := util.GenerateRandomConsumerName("NEWGROUP1")
-	unknownGroup := util.GenerateRandomConsumerName("NEWGROUP2")
+	knownGroup := generate.RandomStringWithPrefix("NEWGROUP1")
+	unknownGroup := generate.RandomStringWithPrefix("NEWGROUP2")
 
 	// create a stream
-	groupTestStreamName := util.GenerateRandomConsumerName("GROUPTESTSTREAM")
+	groupTestStreamName := generate.RandomStringWithPrefix("GROUPTESTSTREAM")
 	err := client.ProduceMessage(context.Background(), groupTestStreamName, map[string]interface{}{"test": "test"})
 	if err != nil {
 		t.Fatalf("Error creating consumer group: %v", err)
@@ -207,4 +208,11 @@ func TestConsumerGroupExists(t *testing.T) {
 		t.Fatalf("Error checking consumer group: %v", err)
 	}
 	assert.False(t, exists)
+
+}
+
+// test closeConnection  must always run last
+func TestCloseConnection(t *testing.T) {
+	client.CloseConnection()
+
 }
