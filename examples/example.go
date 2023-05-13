@@ -1,9 +1,10 @@
-package examples
+package main
 
 import (
 	"context"
-	"github.com/a-agmon/redis-streams-wrapper/v1"
 	"log"
+
+	rediswrapper "github.com/a-agmon/redis-streams-wrapper/v1"
 )
 
 func main() {
@@ -32,26 +33,20 @@ func main() {
 	}
 	// wait 5 seconds for 3 messages to arrive
 	log.Printf("Waiting 5 seconds for 3 messages to arrive")
-	messages, err := client.FetchNewMessages(
-		ctx,
-		exampleStreamName,
-		exampleGroupName,
-		3,
-		5)
-	log.Printf("Messages arrived!")
+	err = client.FetchNewMessagesWithCB(
+		ctx, exampleStreamName, exampleGroupName, 3, 5,
+		func(msgID string, payload map[string]interface{}) {
+			log.Printf("NewMessage!\n\tConsumer:%s\n\tmessage:%s\n\tPayload:%v\n\n",
+				client.ConsumerName,
+				msgID,
+				payload)
+			err = client.AckMessage(ctx, exampleStreamName, exampleGroupName, msgID)
+			if err != nil {
+				panic(err)
+			}
+		})
 	if err != nil {
 		panic(err)
-	}
-	// print and ack every message
-	for _, message := range messages {
-		log.Printf("NewMessage!\n\tConsumer:%s\n\tmessage:%s\n\tPayload:%v\n\n",
-			client.ConsumerName,
-			message.ID,
-			message.Properties)
-		err := client.AckMessage(ctx, exampleStreamName, exampleGroupName, message.ID)
-		if err != nil {
-			panic(err)
-		}
 	}
 
 }
