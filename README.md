@@ -22,7 +22,8 @@ err := client.ProduceMessage(ctx, exampleStreamName, map[string]interface{}{
     "author": "Earnest Hemingway",
 })
 // create a consumer group if it does not exist
-err = client.CreateConsumerGroupIfNotExists(context.Background(), exampleStreamName, exampleGroupName)
+err = client.CreateConsumerGroupIfNotExists(context.Background(), 
+	exampleStreamName, exampleGroupName)
 // wait 5 seconds for 3 messages to arrive
 err = client.FetchNewMessagesWithCB(
     ctx, exampleStreamName, exampleGroupName, 3, 5,
@@ -46,7 +47,8 @@ claimedMessages, err = client.ClaimMessagesNotAcked(context.Background(),
 	}
 	// now ack the messages
 	for _, message := range claimedMessages {
-		err = client.AckMessage(context.Background(), testStreamName, testConsumerGroup, message.ID)
+		err = client.AckMessage(context.Background(), testStreamName, 
+			testConsumerGroup, message.ID)
 		if err != nil {
 			...
 		}
