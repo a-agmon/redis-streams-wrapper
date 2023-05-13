@@ -1,13 +1,14 @@
-package main
+package examples
 
 import (
 	"context"
 	"fmt"
-	"github.com/a-agmon/redis-streams-wrapper/v1"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
+
+	rediswrapper "github.com/a-agmon/redis-streams-wrapper/v1"
 )
 
 func main() {
