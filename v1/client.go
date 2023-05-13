@@ -1,9 +1,9 @@
-package lib
+package rediswrapper
 
 import (
 	"context"
 	"fmt"
-	"github.com/a-agmon/redis-streams-wrapper/util"
+	"github.com/a-agmon/redis-streams-wrapper/generate"
 	"github.com/redis/go-redis/v9"
 	"log"
 	"time"
@@ -30,12 +30,12 @@ type RedisStreamsMessage struct {
 	Properties    map[string]interface{}
 }
 
-// NewRedisClient  creates a new RedisStreamsClient, it also accepts a RedisClientConfig struct as well as optional string for
+// NewRedisClientWrapper  creates a new RedisStreamsClient, it also accepts a RedisClientConfig struct as well as optional string for
 // consumer name. If consumer name is not provided a random string will be generated.
 // The idea is to create a stateless consumer/producer that can send/poll messages to/from any topic using any consumer group they choose
-func NewRedisClient(config RedisClientConfig, consumerName string) *RedisStreamsClient {
+func NewRedisClientWrapper(config RedisClientConfig, consumerName string) *RedisStreamsClient {
 	if consumerName == "" {
-		consumerName = util.GenerateRandomConsumerName("consumer")
+		consumerName = generate.RandomStringWithPrefix("consumer")
 	}
 	return &RedisStreamsClient{
 		client: redis.NewClient(&redis.Options{
@@ -212,4 +212,16 @@ func (r *RedisStreamsClient) transformXMessageToRedisStreamsMessage(xMessage *re
 		ID:         xMessage.ID,
 		Properties: xMessage.Values,
 	}
+}
+
+// CloseConnection closeConnection closes the redis connection, though it should be alive and shared between routines.
+func (r *RedisStreamsClient) CloseConnection() {
+	if r.client != nil {
+		err := r.client.Close()
+		if err != nil {
+			log.Printf("Error closing redis connection: %v\n", err)
+			panic(err)
+		}
+	}
+
 }

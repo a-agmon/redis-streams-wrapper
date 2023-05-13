@@ -1,4 +1,4 @@
-package util
+package generate
 
 import (
 	"fmt"
@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func GenerateRandomConsumerName(prefix string) string {
+func RandomStringWithPrefix(prefix string) string {
 	rand.Seed(time.Now().UnixNano())
 	// Generate three random uppercase letters
 	b := make([]byte, 3)
