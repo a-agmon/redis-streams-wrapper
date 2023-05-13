@@ -126,6 +126,41 @@ func (r *RedisStreamsClient) FetchNewMessages(ctx context.Context, streamKey str
 
 }
 
+// FetchNewMessagesWithCB is similar to the method above, besides that instead of returning the messages it recieves a function as param
+// that will be called for each message, the functions params is message id,  message properties
+func (r *RedisStreamsClient) FetchNewMessagesWithCB(
+	ctx context.Context, 
+	streamKey string, 
+	consumerGroup string,
+	 count int, 
+	 waitForSeconds int,
+	cb func(string, map[string]interface{})) error {
+	streams, err := r.client.XReadGroup(ctx, &redis.XReadGroupArgs{
+		Group:    consumerGroup,
+		Consumer: r.ConsumerName,
+		Streams:  []string{streamKey, ">"}, // ">" means read from the latest message
+		Count:    int64(count),
+		Block:    time.Duration(waitForSeconds) * time.Second,
+	}).Result()
+	if err != nil {
+		if err == redis.Nil { // nothing was received after the block time
+			return nil
+		} else {
+			return fmt.Errorf("error polling for new messages: %v", err)
+		}
+	}
+	//there should only be one stream message (because we are only looking for messages from one stream)
+	if len(streams) != 1 {
+		err = fmt.Errorf("consumer %s received %d new messages on group %s and should have recieved just one", r.ConsumerName, len(streams[0].Messages), consumerGroup)
+		return err
+	}
+	redisMessages := streams[0].Messages
+	for _, redisMessage := range redisMessages {
+		cb(redisMessage.ID, redisMessage.Values)
+	}
+	return nil
+}
+
 // AckMessage acknowledges a message for the given consumer group and consumer name
 // it requires the following parameters:
 // streamKey: the stream key to acknowledge the message from
@@ -158,7 +193,7 @@ func (r *RedisStreamsClient) ClaimMessagesNotAcked(ctx context.Context, streamKe
 		return []RedisStreamsMessage{}, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("Error fetching pending messages: %v\n", err)
+		return nil, fmt.Errorf("error fetching pending messages: %v", err)
 	}
 	if len(pending) == 0 {
 		log.Printf("No pending messages found for group %s on stream %s by consumer %s \n", consumerGroup, streamKey, r.ConsumerName)
