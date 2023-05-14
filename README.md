@@ -1,12 +1,15 @@
 ## redis-streams-wrapper
-### Lean Kafka-like API for Redis Streams
+### Opinionated Kafka-like API for Redis Streams
 
 Redis Streams is a performant stream processing and messaging solution that is based on Redis.
-For many use cases it is a simpler and cheaper alternative to Kafka. Some of its advantages over Kafka is that its not based on partitions, its parallelism is not limited by partition number and therefore consumer applications can be easliy scaled, and it is relatively lean and simple to maintain. On the other hand, it is less durable and does not persist data (rather than being an append log server like Kafka it stores everything in memory).
+For many use cases, it's a much simpler and cheaper alternative to Kafka.
+Some of its advantages over Kafka are that its not based on partitions, its parallelism is not limited by partition number and therefore consumer applications can be easliy scaled,
+and it is relatively lean and simple to maintain. 
+On the other hand, it is less durable and, as is the case with Redis, uses in process memory for persistance (i.e., rather than being an append log server like Kafka it stores everything in memory).
 One of its disadvantages, however, is its syntax, that can be cumbersome to understand and not easy to use. 
-This project makes use of redis-go library and wraps it with a Kafka-like API
+This project makes use of the wonderful redis-go library and wraps Redis-Streams with a Kafka-like API
 
-Using it is fairly simple
+Using it is fairly simple:
 
 ```go
 
