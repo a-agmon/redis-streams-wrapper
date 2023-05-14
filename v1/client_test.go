@@ -2,12 +2,13 @@ package rediswrapper
 
 import (
 	"context"
-	"github.com/a-agmon/redis-streams-wrapper/generate"
-	"github.com/alicebob/miniredis/v2"
-	"github.com/stretchr/testify/assert"
 	"log"
 	"testing"
 	"time"
+
+	"github.com/a-agmon/redis-streams-wrapper/generate"
+	"github.com/alicebob/miniredis/v2"
+	"github.com/stretchr/testify/assert"
 )
 
 var testConsumerName = generate.RandomStringWithPrefix("CONSUMER")
@@ -129,28 +130,26 @@ func TestPollAndAck(t *testing.T) {
 	assert.EqualValues(t, len(messages), 0)
 }
 
-
 func TestPollAndAckWithCB(t *testing.T) {
 	produceMessages(10, t, client)
 	var messagesProcessed int
 	err := client.FetchNewMessagesWithCB(context.Background(),
-	 testStreamName, 
-	 testConsumerGroup, 
-	 20, 3, 
-	 func(id string, props map[string]interface{}) {
-		//ack the message
-		err := client.AckMessage(context.Background(), testStreamName, testConsumerGroup, id)
-		if err != nil {
-			t.Fatalf("Error acking message: %v", err)
-		}
-		messagesProcessed++
-	})
+		testStreamName,
+		testConsumerGroup,
+		20, 3,
+		func(id string, props map[string]interface{}) {
+			//ack the message
+			err := client.AckMessage(context.Background(), testStreamName, testConsumerGroup, id)
+			if err != nil {
+				t.Fatalf("Error acking message: %v", err)
+			}
+			messagesProcessed++
+		})
 	if err != nil {
 		t.Fatalf("Error polling for new messages: %v", err)
 	}
 	assert.EqualValues(t, messagesProcessed, 10)
 }
-
 
 func TestContinousPol(t *testing.T) {
 	produceMessages(100, t, client)

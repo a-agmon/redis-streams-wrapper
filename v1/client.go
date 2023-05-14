@@ -3,10 +3,11 @@ package rediswrapper
 import (
 	"context"
 	"fmt"
-	"github.com/a-agmon/redis-streams-wrapper/generate"
-	"github.com/redis/go-redis/v9"
 	"log"
 	"time"
+
+	"github.com/a-agmon/redis-streams-wrapper/generate"
+	"github.com/redis/go-redis/v9"
 )
 
 type RedisClientConfig struct {
@@ -73,10 +74,10 @@ func (r *RedisStreamsClient) CreateConsumerGroupIfNotExists(ctx context.Context,
 // it requires the following parameters:
 // streamKey: the stream key to produce the message to
 // properties: a map of key value pairs that will be sent as part of the message
-func (r *RedisStreamsClient) ProduceMessage(ctx context.Context, streamKey string, properties map[string]interface{}) error {
+func (r *RedisStreamsClient) ProduceMessage(ctx context.Context, streamKey string, payload map[string]interface{}) error {
 	id, err := r.client.XAdd(ctx, &redis.XAddArgs{
 		Stream: streamKey,
-		Values: properties,
+		Values: payload,
 	}).Result()
 	if err != nil {
 		return fmt.Errorf("Error producing message: %v\n", err)
@@ -103,12 +104,12 @@ func (r *RedisStreamsClient) FetchNewMessages(ctx context.Context, streamKey str
 		if err == redis.Nil { // nothing was received after the block time
 			return []RedisStreamsMessage{}, nil
 		} else {
-			return nil, fmt.Errorf("Error polling for new messages: %v\n", err)
+			return nil, fmt.Errorf("error polling for new messages: %v", err)
 		}
 	}
 	//there should only be one stream message (because we are only looking for messages from one stream)
 	if len(streams) != 1 {
-		err = fmt.Errorf("Consumer %s received %d new messages on group %s and should have recieved just one \n", r.ConsumerName, len(streams[0].Messages), consumerGroup)
+		err = fmt.Errorf("consumer %s received %d new messages on group %s and should have recieved just one", r.ConsumerName, len(streams[0].Messages), consumerGroup)
 		return nil, err
 	}
 	redisMessages := streams[0].Messages
@@ -128,12 +129,14 @@ func (r *RedisStreamsClient) FetchNewMessages(ctx context.Context, streamKey str
 
 // FetchNewMessagesWithCB is similar to the method above, besides that instead of returning the messages it recieves a function as param
 // that will be called for each message, the functions params is message id,  message properties
+// Note 1 that your call back function should must handle any erroras that may occur as this method simeply loops over the messages and calls the function
+// Note 2: You also have to ack each message manually by calling AckMessage
 func (r *RedisStreamsClient) FetchNewMessagesWithCB(
-	ctx context.Context, 
-	streamKey string, 
+	ctx context.Context,
+	streamKey string,
 	consumerGroup string,
-	 count int, 
-	 waitForSeconds int,
+	count int,
+	waitForSeconds int,
 	cb func(string, map[string]interface{})) error {
 	streams, err := r.client.XReadGroup(ctx, &redis.XReadGroupArgs{
 		Group:    consumerGroup,
@@ -169,7 +172,7 @@ func (r *RedisStreamsClient) FetchNewMessagesWithCB(
 func (r *RedisStreamsClient) AckMessage(ctx context.Context, streamKey string, consumerGroup string, messageID string) error {
 	err := r.client.XAck(ctx, streamKey, consumerGroup, messageID).Err()
 	if err != nil {
-		return fmt.Errorf("Error acknowledging message: %v\n", err)
+		return fmt.Errorf("error acknowledging message: %v", err)
 	}
 	log.Printf("Consumer %s Acknowledged message %s on group %s \n", r.ConsumerName, messageID, consumerGroup)
 	return nil
