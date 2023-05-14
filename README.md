@@ -14,10 +14,11 @@ Using it is fairly simple:
 ```go
 
 import "github.com/a-agmon/redis-streams-wrapper/v1"
+
     // create a client
-client := rediswrapper.NewRedisClientWrapper(rediswrapper.RedisClientConfig{
-    Addr: "localhost:6379",
-}, "")
+client := rediswrapper.NewRedisClientWrapper(
+	rediswrapper.RedisClientConfig{Addr: "localhost:6379",}
+   	,"")
 
 // produce a message
 ctx := context.Background()
@@ -25,9 +26,11 @@ err := client.ProduceMessage(ctx, exampleStreamName, map[string]interface{}{
     "book":   "The Sun Also Rises",
     "author": "Earnest Hemingway",
 })
+
 // create a consumer group if it does not exist
 err = client.CreateConsumerGroupIfNotExists(context.Background(), 
 	exampleStreamName, exampleGroupName)
+	
 // wait 5 seconds for 3 messages to arrive
 err = client.FetchNewMessagesWithCB(
     ctx, exampleStreamName, exampleGroupName, 3, 5,
