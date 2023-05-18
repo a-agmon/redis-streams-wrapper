@@ -11,16 +11,16 @@ import (
 )
 
 type RedisClientConfig struct {
-	Addr     string
-	Username string
-	Password string
-	DB       int
+	Addr         string
+	Username     string
+	Password     string
+	DB           int
+	ConsumerName string
 }
 
 type RedisStreamsClient struct {
-	client       *redis.Client
-	config       RedisClientConfig
-	ConsumerName string
+	client *redis.Client
+	Config RedisClientConfig
 }
 
 type RedisStreamsMessage struct {
@@ -34,27 +34,30 @@ type RedisStreamsMessage struct {
 // NewRedisClientWrapper  creates a new RedisStreamsClient, it also accepts a RedisClientConfig struct as well as optional string for
 // consumer name. If consumer name is not provided a random string will be generated.
 // The idea is to create a stateless consumer/producer that can send/poll messages to/from any topic using any consumer group they choose
-func NewRedisClientWrapper(config RedisClientConfig, consumerName string) *RedisStreamsClient {
-	if consumerName == "" {
-		consumerName = generate.RandomStringWithPrefix("consumer")
+func NewRedisClientWrapper(config RedisClientConfig) *RedisStreamsClient {
+	client := redis.NewClient(&redis.Options{
+		Addr:     config.Addr,
+		Username: config.Username,
+		Password: config.Password,
+		DB:       config.DB,
+	})
+	clientWrapper := &RedisStreamsClient{
+		client: client,
+		Config: config,
 	}
-	return &RedisStreamsClient{
-		client: redis.NewClient(&redis.Options{
-			Addr:     config.Addr,
-			Username: config.Username,
-			Password: config.Password,
-			DB:       config.DB,
-		}),
-		config:       config,
-		ConsumerName: consumerName,
+	// if consumer name is empty then generate a random one
+	if clientWrapper.Config.ConsumerName == "" {
+		clientWrapper.Config.ConsumerName = generate.RandomStringWithPrefix("consumer")
+		log.Printf("Consumer name not provided, generated random consumer name: %s", clientWrapper.Config.ConsumerName)
 	}
+	return clientWrapper
 }
 
 // CreateConsumerGroupIfNotExists creates a consumer group if it does not exist
 // it requires the following parameters:
 // streamKey: the stream key to create the consumer group on
 // consumerGroup: the consumer group to create
-func (r *RedisStreamsClient) CreateConsumerGroupIfNotExists(ctx context.Context, streamKey string, consumerGroup string) error {
+func (r *RedisStreamsClient) createConsumerGroupIfNotExists(ctx context.Context, streamKey string, consumerGroup string) error {
 	//validate that group name isnot empty
 	if consumerGroup == "" {
 		return fmt.Errorf("consumer group name cannot be empty")
@@ -80,9 +83,25 @@ func (r *RedisStreamsClient) ProduceMessage(ctx context.Context, streamKey strin
 		Values: payload,
 	}).Result()
 	if err != nil {
-		return fmt.Errorf("Error producing message: %v\n", err)
+		return fmt.Errorf("eror producing message: %v", err)
 	}
 	log.Printf("Produced message %s to stream: %s\n", id, streamKey)
+	return nil
+}
+
+func (r *RedisStreamsClient) ensureConsumerGroupExists(ctx context.Context, streamKey string, consumerGroup string) error {
+	// first check if group exists, if not create it
+	groupExists, err := r.ConsumerGroupExists(ctx, streamKey, consumerGroup)
+	if err != nil {
+		return fmt.Errorf("error checking if consumer group exists: %v", err)
+	}
+	if !groupExists {
+		log.Printf("Consumer group %s does not exist on stream %s, creating it", consumerGroup, streamKey)
+		err = r.createConsumerGroupIfNotExists(ctx, streamKey, consumerGroup)
+		if err != nil {
+			return fmt.Errorf("error creating consumer group: %v", err)
+		}
+	}
 	return nil
 }
 
@@ -93,9 +112,14 @@ func (r *RedisStreamsClient) ProduceMessage(ctx context.Context, streamKey strin
 // count: the number of messages to poll
 // waitForSeconds: how long to block for new messages. use 0 to block indefinitely
 func (r *RedisStreamsClient) FetchNewMessages(ctx context.Context, streamKey string, consumerGroup string, count int, waitForSeconds int) ([]RedisStreamsMessage, error) {
+	err := r.ensureConsumerGroupExists(ctx, streamKey, consumerGroup)
+	if err != nil {
+		return nil, fmt.Errorf("error ensuring consumer group exists: %v", err)
+	}
+	// now poll for new messages
 	streams, err := r.client.XReadGroup(ctx, &redis.XReadGroupArgs{
 		Group:    consumerGroup,
-		Consumer: r.ConsumerName,
+		Consumer: r.Config.ConsumerName,
 		Streams:  []string{streamKey, ">"}, // ">" means read from the latest message
 		Count:    int64(count),
 		Block:    time.Duration(waitForSeconds) * time.Second,
@@ -109,7 +133,7 @@ func (r *RedisStreamsClient) FetchNewMessages(ctx context.Context, streamKey str
 	}
 	//there should only be one stream message (because we are only looking for messages from one stream)
 	if len(streams) != 1 {
-		err = fmt.Errorf("consumer %s received %d new messages on group %s and should have recieved just one", r.ConsumerName, len(streams[0].Messages), consumerGroup)
+		err = fmt.Errorf("consumer %s received %d new messages on group %s and should have recieved just one", r.Config.ConsumerName, len(streams[0].Messages), consumerGroup)
 		return nil, err
 	}
 	redisMessages := streams[0].Messages
@@ -117,7 +141,7 @@ func (r *RedisStreamsClient) FetchNewMessages(ctx context.Context, streamKey str
 	for _, redisMessage := range redisMessages {
 		messages = append(messages, RedisStreamsMessage{
 			ID:            redisMessage.ID,
-			ConsumerName:  r.ConsumerName,
+			ConsumerName:  r.Config.ConsumerName,
 			ConsumerGroup: consumerGroup,
 			StreamName:    streamKey,
 			Properties:    redisMessage.Values,
@@ -138,9 +162,13 @@ func (r *RedisStreamsClient) FetchNewMessagesWithCB(
 	count int,
 	waitForSeconds int,
 	cb func(string, map[string]interface{})) error {
+	err := r.ensureConsumerGroupExists(ctx, streamKey, consumerGroup)
+	if err != nil {
+		return fmt.Errorf("error ensuring consumer group exists: %v", err)
+	}
 	streams, err := r.client.XReadGroup(ctx, &redis.XReadGroupArgs{
 		Group:    consumerGroup,
-		Consumer: r.ConsumerName,
+		Consumer: r.Config.ConsumerName,
 		Streams:  []string{streamKey, ">"}, // ">" means read from the latest message
 		Count:    int64(count),
 		Block:    time.Duration(waitForSeconds) * time.Second,
@@ -154,7 +182,7 @@ func (r *RedisStreamsClient) FetchNewMessagesWithCB(
 	}
 	//there should only be one stream message (because we are only looking for messages from one stream)
 	if len(streams) != 1 {
-		err = fmt.Errorf("consumer %s received %d new messages on group %s and should have recieved just one", r.ConsumerName, len(streams[0].Messages), consumerGroup)
+		err = fmt.Errorf("consumer %s received %d new messages on group %s and should have recieved just one", r.Config.ConsumerName, len(streams[0].Messages), consumerGroup)
 		return err
 	}
 	redisMessages := streams[0].Messages
@@ -174,7 +202,7 @@ func (r *RedisStreamsClient) AckMessage(ctx context.Context, streamKey string, c
 	if err != nil {
 		return fmt.Errorf("error acknowledging message: %v", err)
 	}
-	log.Printf("Consumer %s Acknowledged message %s on group %s \n", r.ConsumerName, messageID, consumerGroup)
+	log.Printf("Consumer %s Acknowledged message %s on group %s \n", r.Config.ConsumerName, messageID, consumerGroup)
 	return nil
 }
 
@@ -192,14 +220,14 @@ func (r *RedisStreamsClient) ClaimMessagesNotAcked(ctx context.Context, streamKe
 		Count:  count,
 	}).Result()
 	if err == redis.Nil {
-		log.Printf("No pending messages found for group %s on stream %s by consumer %s \n", consumerGroup, streamKey, r.ConsumerName)
+		log.Printf("No pending messages found for group %s on stream %s by consumer %s \n", consumerGroup, streamKey, r.Config.ConsumerName)
 		return []RedisStreamsMessage{}, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("error fetching pending messages: %v", err)
 	}
 	if len(pending) == 0 {
-		log.Printf("No pending messages found for group %s on stream %s by consumer %s \n", consumerGroup, streamKey, r.ConsumerName)
+		log.Printf("No pending messages found for group %s on stream %s by consumer %s \n", consumerGroup, streamKey, r.Config.ConsumerName)
 		return []RedisStreamsMessage{}, nil
 	}
 	claimedMessages := make([]RedisStreamsMessage, 0)
@@ -210,7 +238,7 @@ func (r *RedisStreamsClient) ClaimMessagesNotAcked(ctx context.Context, streamKe
 		xclaimedMsgArray, err := r.client.XClaim(ctx, &redis.XClaimArgs{
 			Stream:   streamKey,
 			Group:    consumerGroup,
-			Consumer: r.ConsumerName,
+			Consumer: r.Config.ConsumerName,
 			MinIdle:  idleClaimedDuration,
 			Messages: []string{pendingMsg.ID},
 		}).Result()

@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var testConsumerName = generate.RandomStringWithPrefix("CONSUMER")
 var testStreamName = generate.RandomStringWithPrefix("STREAM")
 var testConsumerGroup = generate.RandomStringWithPrefix("GROUP")
 var client *RedisStreamsClient
@@ -28,7 +27,7 @@ func TestMain(m *testing.M) {
 		DB:       0,
 		Password: "",
 		Username: "",
-	}, testConsumerName)
+	})
 
 	m.Run()
 	s.Close()
@@ -45,7 +44,7 @@ func TestProduceMessage(t *testing.T) {
 		t.Fatalf("Error producing message: %v", err)
 	}
 	//create a consumer group
-	err = client.CreateConsumerGroupIfNotExists(context.Background(), testStreamName, testConsumerGroup)
+	err = client.createConsumerGroupIfNotExists(context.Background(), testStreamName, testConsumerGroup)
 	if err != nil {
 		t.Fatalf("Error creating consumer group: %v", err)
 	}
@@ -178,16 +177,16 @@ func TestContinousPol(t *testing.T) {
 
 func TestCreatingGroup(t *testing.T) {
 	//create a consumer group
-	err := client.CreateConsumerGroupIfNotExists(context.Background(), testStreamName, "GROUP1")
+	err := client.createConsumerGroupIfNotExists(context.Background(), testStreamName, "GROUP1")
 	if err != nil {
 		t.Fatalf("Error creating consumer group: %v", err)
 	}
 	//create a consumer group with the same name
-	err = client.CreateConsumerGroupIfNotExists(context.Background(), testStreamName, "GROUP1")
+	err = client.createConsumerGroupIfNotExists(context.Background(), testStreamName, "GROUP1")
 	if err != nil {
 		t.Fatalf("Error creating consumer group: %v", err)
 	}
-	err = client.CreateConsumerGroupIfNotExists(context.Background(), testStreamName, "")
+	err = client.createConsumerGroupIfNotExists(context.Background(), testStreamName, "")
 	if err == nil {
 		t.Fail()
 	}
@@ -214,7 +213,7 @@ func TestConsumerGroupExists(t *testing.T) {
 		t.Fatalf("Error creating consumer group: %v", err)
 	}
 	//create a consumer group
-	err = client.CreateConsumerGroupIfNotExists(context.Background(), groupTestStreamName, knownGroup)
+	err = client.createConsumerGroupIfNotExists(context.Background(), groupTestStreamName, knownGroup)
 	if err != nil {
 		t.Fatalf("Error creating consumer group: %v", err)
 	}
@@ -230,6 +229,12 @@ func TestConsumerGroupExists(t *testing.T) {
 		t.Fatalf("Error checking consumer group: %v", err)
 	}
 	assert.False(t, exists)
+	// start polling with the new group and make sure it is added automatically
+	messages, err := client.FetchNewMessages(context.Background(), groupTestStreamName, unknownGroup, 5, 3)
+	if err != nil {
+		t.Fatalf("Error polling for new messages: %v", err)
+	}
+	assert.EqualValues(t, 1, len(messages))
 
 }
 
