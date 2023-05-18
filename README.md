@@ -13,51 +13,47 @@ Using it is fairly simple:
 
 ```go
 
-import "github.com/a-agmon/redis-streams-wrapper/v1"
+package main
 
-    // create a client
-client := rediswrapper.NewRedisClientWrapper(
-	rediswrapper.RedisClientConfig{Addr: "localhost:6379",}
-   	,"")
+import (
+	"context"
+	"log"
+	rediswrapper "github.com/a-agmon/redis-streams-wrapper/v1"
+)
 
-// produce a message
-ctx := context.Background()
-err := client.ProduceMessage(ctx, exampleStreamName, map[string]interface{}{
-    "book":   "The Sun Also Rises",
-    "author": "Earnest Hemingway",
-})
+func main() {
 
-// create a consumer group if it does not exist
-err = client.CreateConsumerGroupIfNotExists(context.Background(), 
-	exampleStreamName, exampleGroupName)
-	
-// wait 5 seconds for 3 messages to arrive
-err = client.FetchNewMessagesWithCB(
-    ctx, exampleStreamName, exampleGroupName, 3, 5,
-    func(msgID string, payload map[string]interface{}) {
-        log.Printf("NewMessage!\n\tConsumer:%s\n\tmessage:%s\n\tPayload:%v\n\n",
-            client.ConsumerName,
-            msgID,
-            payload)
-        //Ack the message
-        err = client.AckMessage(ctx, exampleStreamName, exampleGroupName, msgID)
-    })
-```
+	exampleStreamName := "books-order-stream"
+	exampleGroupName := "books-order-group"
+	// create a new client wrapper - consumer name is optional - will be created if not provided
+	client := rediswrapper.NewRedisClientWrapper(rediswrapper.RedisClientConfig{Addr: "localhost:6379"})
+	log.Printf("Client created with consumer name %s", client.Config.ConsumerName)
 
-Redis can manage offeset tracking using consumer groups, and can reclaim any messages not acked by other consumers:
-
-```go
-claimedMessages, err = client.ClaimMessagesNotAcked(context.Background(), 
-	testStreamName, testConsumerGroup, 10, 1)
+	// produce a message
+	ctx := context.Background()
+	err := client.ProduceMessage(ctx, exampleStreamName, map[string]interface{}{
+		"book":   "The Sun Also Rises",
+		"author": "Earnest Hemingway",
+	})
 	if err != nil {
-	...
+		panic(err)
 	}
-	// now ack the messages
-	for _, message := range claimedMessages {
-		err = client.AckMessage(context.Background(), testStreamName, 
-			testConsumerGroup, message.ID)
-		if err != nil {
-			...
-		}
+	log.Printf("Waiting 5 seconds for 3 messages to arrive")
+	err = client.FetchNewMessagesWithCB(
+		ctx, exampleStreamName, exampleGroupName, 3, 5,
+		func(msgID string, payload map[string]interface{}) {
+			log.Printf("NewMessage!\n\tConsumer:%s\n\tmessage:%s\n\tPayload:%v\n\n",
+				client.Config.ConsumerName,
+				msgID,
+				payload)
+			err = client.AckMessage(ctx, exampleStreamName, exampleGroupName, msgID)
+			if err != nil {
+				panic(err)
+			}
+		})
+	if err != nil {
+		panic(err)
 	}
+
+}
 ```

@@ -38,25 +38,21 @@ func main() {
 
 func initRedisClient(redisURL string, consumerName string) *rediswrapper.RedisStreamsClient {
 	redisClient := rediswrapper.NewRedisClientWrapper(rediswrapper.RedisClientConfig{
-		Addr:     redisURL,
-		Username: "",
-		Password: "",
-		DB:       0,
-	}, consumerName)
+		Addr:         redisURL,
+		Username:     "",
+		Password:     "",
+		DB:           0,
+		ConsumerName: consumerName,
+	})
 	return redisClient
 }
 
 func createPollingConsumer(redisURL string, stream string, consumerGroup string, consumerName string) error {
 	redisClient := initRedisClient(redisURL, consumerName)
 	ctx := context.Background()
-	// Create a consumer group if it does not exist
-	err := redisClient.CreateConsumerGroupIfNotExists(ctx, stream, consumerGroup)
-	if err != nil {
-		return fmt.Errorf("error creating consumer group: %v", err)
-	}
 	// Start polling routine for messages
 	go func() {
-		log.Printf("consumer %s started polling for messages", consumerName)
+		log.Printf("consumer %s started polling for messages", redisClient.Config.ConsumerName)
 		for {
 			messages, err := redisClient.FetchNewMessages(ctx, stream, consumerGroup, 100, 3)
 			if err != nil {
