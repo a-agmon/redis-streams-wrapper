@@ -25,7 +25,8 @@ func main() {
 
 	exampleStreamName := "books-order-stream"
 	exampleGroupName := "books-order-group"
-	// create a new client wrapper - consumer name is optional - will be created if not provided
+	// create a new client wrapper - 
+	// consumer name is optional - will be created if not provided
 	client := rediswrapper.NewRedisClientWrapper(
 		rediswrapper.RedisClientConfig{Addr: "localhost:6379"}
 	)
